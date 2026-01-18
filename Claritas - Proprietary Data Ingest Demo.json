@@ -1,0 +1,402 @@
+{
+  "name": "Claritas - Proprietary Data Ingest Demo (Validate + Dedupe + Upsert + Quarantine)",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -860,
+        -20
+      ],
+      "id": "e2a4cf6c-0e6b-4df4-9a9a-885b8a42c0b9",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "csv_url",
+              "value": "https://internal.example.com/data/leads.csv"
+            },
+            {
+              "name": "run_id",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "name": "source_name",
+              "value": "internal_leads_csv"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        -20
+      ],
+      "id": "28d287a4-1d3f-4c36-93aa-1a6b72c5c7cb",
+      "name": "Set Config"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.csv_url }}",
+        "method": "GET",
+        "authentication": "none",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "responseFormat": "file"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -420,
+        -20
+      ],
+      "id": "57f7fc28-2483-41b7-a3d6-0a9b4fdc2f92",
+      "name": "Download CSV (Internal URL)"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        -20
+      ],
+      "id": "d2bf23d4-4a7b-4d8e-b2e5-6b48b6f37f31",
+      "name": "Parse CSV to Rows"
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        40,
+        -20
+      ],
+      "id": "d0c58d05-22ce-4c60-bb8b-0b36e8c1b1af",
+      "name": "Split In Batches"
+    },
+    {
+      "parameters": {
+        "jsCode": "function norm(v) {\n  if (v === null || v === undefined) return '';\n  return String(v).trim();\n}\n\nconst row = $json;\n\n// Basic normalisation\nconst email = norm(row.email || row.Email || row.EMAIL).toLowerCase();\nconst company = norm(row.company || row.Company || row.COMPANY);\nconst firstName = norm(row.first_name || row.firstName || row.FirstName);\nconst lastName = norm(row.last_name || row.lastName || row.LastName);\n\n// Example idempotency key (choose what makes sense in the client stack)\nconst idempotencyKey = email ? `lead:${email}` : (company ? `lead:${company}:${firstName}:${lastName}`.toLowerCase() : '');\n\nreturn [{\n  json: {\n    ...row,\n    email,\n    company,\n    firstName,\n    lastName,\n    idempotencyKey\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        -20
+      ],
+      "id": "f8f52c7b-6a76-4f45-9b40-6cb1f4b0dfb9",
+      "name": "Normalize + Dedupe Key"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "b9a69ac0-6a84-4f55-a2ff-60e4d1c2dce2",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "2d3c6ec2-0f44-4e5b-8a9f-2f42fcb0b8c4",
+              "leftValue": "={{ $json.company }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "d7e5d6e9-5dbe-4a39-a6a6-06b95a1ff693",
+              "leftValue": "={{ $json.idempotencyKey }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        520,
+        -20
+      ],
+      "id": "d7a4ac7e-0f4f-4bd2-9a4c-3d0c0b0e5859",
+      "name": "Validate Required Fields"
+    },
+    {
+      "parameters": {
+        "url": "https://internal.example.com/crm/upsert",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"idempotencyKey\": $json.idempotencyKey,\n  \"email\": $json.email,\n  \"company\": $json.company,\n  \"firstName\": $json.firstName,\n  \"lastName\": $json.lastName,\n  \"raw\": $json\n} }}",
+        "options": {
+          "timeout": 20000,
+          "retryOnFail": true,
+          "maxTries": 3,
+          "retryDelay": 1000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        -120
+      ],
+      "id": "b6b0a77f-7a3f-4d0a-9c60-1c3b4c3f78d5",
+      "name": "Upsert Lead (Internal Endpoint)"
+    },
+    {
+      "parameters": {
+        "url": "https://internal.example.com/data/quarantine",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"reason\": \"missing_required_fields\",\n  \"email\": $json.email,\n  \"company\": $json.company,\n  \"idempotencyKey\": $json.idempotencyKey,\n  \"raw\": $json\n} }}",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        80
+      ],
+      "id": "55e4655a-4b2d-4f3b-9e10-4e4e4a0f3a67",
+      "name": "Quarantine Row (Internal Endpoint)",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://internal.example.com/workflow-logs",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"workflow\": \"proprietary_ingest_demo\",\n  \"runId\": $items(\"Set Config\")[0].json.run_id,\n  \"timestamp\": $now.toISO(),\n  \"status\": \"row_processed\",\n  \"idempotencyKey\": $json.idempotencyKey,\n  \"email\": $json.email,\n  \"company\": $json.company\n} }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -20
+      ],
+      "id": "e4fdfcab-43b5-4b64-8c65-0b38f6e1d6d2",
+      "name": "Log Row (HTTP)",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://hooks.slack.com/services/REPLACE/ME",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"text\": `Proprietary ingest demo completed. Run: ${$items('Set Config')[0].json.run_id}. Execution: ${$execution.id}`\n} }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        -20
+      ],
+      "id": "9c0b9b9c-0d48-4e50-9bb7-3b3f8a0d7d73",
+      "name": "Notify Slack (Webhook)",
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Download CSV (Internal URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download CSV (Internal URL)": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV to Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV to Rows": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Dedupe Key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Slack (Webhook)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + Dedupe Key": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead (Internal Endpoint)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quarantine Row (Internal Endpoint)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Lead (Internal Endpoint)": {
+      "main": [
+        [
+          {
+            "node": "Log Row (HTTP)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quarantine Row (Internal Endpoint)": {
+      "main": [
+        [
+          {
+            "node": "Log Row (HTTP)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Row (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {}
+}
