@@ -2,118 +2,110 @@
 A repository of automations &amp; experiments
 What’s included
 
-1) AI Newsletter Workflow (v2)
+# n8n-automations-blanketfort
 
-Goal: Generate a weekly newsletter from researched sources using an agentic workflow (plan → write sections → edit → send).
+A small collection of n8n automations built as **training + mentoring examples**.
 
-High-level flow
-	•	Scheduled trigger runs weekly
-	•	Pulls research results (web search)
-	•	Planning step selects a theme and generates exactly 3 topics (structured output)
-	•	Splits into 3 parallel topic paths
-	•	Research + section-writing per topic
-	•	Aggregates sections
-	•	Final editor agent merges into one cohesive HTML email (structured output)
-	•	Sends via email
+These workflows are structured to be easy to teach in office hours:
+- clear node responsibilities
+- common failure modes handled with branching
+- “production-ish” patterns (validation, idempotency, logging placeholders)
 
-Why it matters
-This is a realistic “starter → intermediate” example because it combines:
-	•	Multi-step LLM usage (planner + writers + editor)
-	•	Structured output parsing (schema-based validation)
-	•	Fan-out / fan-in orchestration
-	•	Real delivery (email output)
+## What’s in this repo
 
-Reliability upgrades in v2 (office-hours ready)
-	•	Branching/fallbacks for empty research results
-	•	Placeholder for internal/proprietary context (e.g., brand voice rules, internal notes)
-	•	Basic run logging placeholder (so teams can debug what happened)
-	•	Clear separation of responsibilities between nodes (planner vs writer vs editor)
+### 1) AI Newsletter Workflow (v2)
+**File:** `Amits Newsletter Workflow v2`  [oai_citation:1‡GitHub](https://github.com/flowstateautomation/n8n-automations-blanketfort/tree/main)
 
-Note: The JSON is intended to be shared and imported. Credentials are not included in the sanitized version; you remap them on import.
+**Goal:** Generate a newsletter using an agentic flow:
+**research → plan → write sections → edit → send**
 
-⸻
+**What it demonstrates**
+- scheduled runs
+- multi-step LLM usage (planner + writers + editor)
+- structured outputs (schema parsing)
+- fan-out / fan-in orchestration (split topics, aggregate sections)
+- email delivery
 
-2) Proprietary Data Ingest Demo
+**Why this is useful for training**
+Most beginners can “make it work once”.
+This workflow is useful because it shows the next step: how to keep it stable when:
+- sources are empty or low quality
+- LLM output format breaks
+- APIs time out or rate-limit
 
-Goal: Ingest internal CSV data, validate and clean it, dedupe via an idempotency key, then upsert into a datastore/CRM. Quarantine bad rows for review.
+**v2 additions (vs a basic newsletter)**
+- branching + fallback search path
+- placeholder “internal/proprietary context” step (brand rules / internal notes)
+- placeholder run logging step (so debugging is faster)
 
-High-level flow
-	•	Trigger (manual for demo; typically Cron or file trigger in production)
-	•	Download internal CSV (placeholder URL or Drive/Dropbox/DB connector)
-	•	Parse into rows
-	•	Process in batches (so it scales)
-	•	Normalize fields (trim, lower-case email, standardise names)
-	•	Generate an idempotency key to prevent duplicates
-	•	Validate required fields
-	•	Valid rows → Upsert path
-	•	Invalid rows → Quarantine path
-	•	Log each processed row and send a completion notification
+---
 
-Why it matters
-This is the “real business” automation pattern that finance/sales/marketing teams actually use:
-	•	messy inputs
-	•	schema drift
-	•	duplicates
-	•	partial records
-	•	fragile downstream APIs
-	•	audit requirements
+### 2) Proprietary Data Ingest Demo
+**File:** `Claritas - Proprietary Data Ingest Demo.json`  [oai_citation:2‡GitHub](https://github.com/flowstateautomation/n8n-automations-blanketfort/tree/main)
 
-It demonstrates the exact mentoring moments that usually cause blockers:
-	•	parsing + data typing
-	•	IF logic and routing
-	•	retries/backoff
-	•	idempotency/upserts
-	•	debugging with logs
+**Goal:** Ingest internal CSV data and run it through a practical pipeline:
+**download → parse → validate → dedupe → upsert → quarantine → log/notify**
 
-⸻
+**What it demonstrates**
+- batch processing (so it scales)
+- schema validation + quarantine path (don’t fail the whole run)
+- idempotency (prevent duplicates using a deterministic key)
+- retry/backoff-ready HTTP patterns (for fragile APIs)
+- basic observability (logging placeholder)
 
-Key patterns demonstrated (the stuff that wins office hours)
-	•	Branching logic: route execution paths based on conditions (missing fields, empty results, invalid model output)
-	•	Structured outputs: schema-driven parsing so LLM output is validated, not guessed
-	•	Idempotency: avoid duplicates using a deterministic key (e.g., lead:<email>)
-	•	Quarantine pattern: don’t “fail the whole run” because one row is bad
-	•	Batch processing: scale safely with Split In Batches
-	•	Retries/backoff: reduce breakage from rate limits and flaky APIs
-	•	Observability: basic logging so debugging is fast and calm during live troubleshooting
+**Why this matters**
+This is the kind of workflow finance/sales/marketing teams actually end up needing:
+messy data, duplicates, partial rows, and downstream systems that fail in annoying ways.
 
-⸻
+---
 
-Setup notes
+## How to use these workflows
 
-Credentials
+### Import into n8n
+1. Open n8n
+2. Go to **Workflows → Import from File**
+3. Import one of the JSON files in this repo
 
-These workflows are designed to be shared. On import, you will need to:
-	•	connect your own API keys (LLM provider, search tool, email provider, datastore/CRM)
-	•	replace placeholder endpoints (e.g., internal context, logging, upsert/quarantine endpoints)
+### Connect credentials
+These exports are intended to be shareable.
+You’ll need to connect your own credentials on import (examples):
+- LLM provider (OpenRouter/OpenAI/etc.)
+- web research tool (Tavily or equivalent)
+- email provider (Gmail/SMTP/etc.)
+- datastore/CRM (Airtable/HubSpot/Postgres/etc.)
 
-Placeholders to replace
+### Replace placeholders
+Some nodes use placeholder URLs like:
+- `https://internal.example.com/brand-context`
+- `https://internal.example.com/workflow-logs`
+- `https://internal.example.com/crm/upsert`
+- `https://internal.example.com/data/quarantine`
 
-You’ll see URLs like:
-	•	https://internal.example.com/brand-context
-	•	https://internal.example.com/workflow-logs
-	•	https://internal.example.com/crm/upsert
-	•	https://internal.example.com/data/quarantine
+Swap these to match your stack (Drive/Notion/Sheets/DB, Slack/Teams logging, etc.).
 
-Swap these for:
-	•	Google Drive/Notion/DB lookups for internal context
-	•	Slack/Teams + a logging table (Sheets/Airtable/Postgres) for visibility
-	•	Airtable/HubSpot/Postgres for upsert/quarantine destinations
+---
 
-⸻
+## Patterns used (the “office hours” bits)
 
-Suggested extensions (if you want to take it from demo → production)
-	•	Add a global error workflow (n8n Error Trigger) that posts failures with execution URLs
-	•	Add a “dead letter queue” (quarantine store) with retry ability after fixes
-	•	Add source deduplication + quality scoring in the newsletter research step
-	•	Add PII handling rules and redaction before logs (if needed for compliance)
+- **Branching logic:** route execution paths based on conditions
+- **Structured output parsing:** schemas to validate LLM output (less guesswork)
+- **Idempotency:** avoid duplicates (keyed upsert pattern)
+- **Quarantine path:** isolate bad inputs instead of failing everything
+- **Batching:** safe processing for larger datasets
+- **Observability:** log runs so debugging is calm and quick
 
-⸻
+---
 
-Who this is for
-	•	teams learning n8n + LLM workflows in a structured certification program
-	•	mentors running office hours where people debug live in front of others
-	•	orgs moving from “cool demo” to “reliable workflows that run every week”
+## Suggested next additions
+If you want to take these from “demo” to “production-like”:
 
-⸻
+- add a global **Error Trigger** workflow that alerts with execution URL + failed node
+- add a dead-letter retry process for quarantined rows
+- redact PII from logs (depending on compliance needs)
+- add source quality scoring + dedupe for newsletter research
 
-If you want, I can also rewrite this as a tighter README (shorter, more “product-y”) or as a trainer-focused README (more emphasis on teaching points and common failure modes).
+---
+
+## Notes
+These workflows are provided as examples.
+They may include opinionated prompt styles and placeholder endpoints that you should adapt for your environment.
