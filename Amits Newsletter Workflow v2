@@ -1,0 +1,662 @@
+{
+  "name": "Amits Newsletter Workflow v2 (branching + logging + internal context)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 14,
+              "triggerAtMinute": 50
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        816,
+        80
+      ],
+      "id": "fc46e7eb-7933-4b04-8600-d58f1dcb8e7d",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "query": "Weekly news on AI SEO ",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavily",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        80
+      ],
+      "id": "69f339a4-c61e-40b5-adb7-686ce6c61352",
+      "name": "Initial Research"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        272
+      ],
+      "id": "1966087d-5656-4bde-98cd-8fe2bf957986",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\"title\", \"topics\"],\n  \"properties\": {\n    \"title\": {\n      \"type\": \"string\",\n      \"description\": \"A short, descriptive title\"\n    },\n    \"topics\": {\n      \"type\": \"array\",\n      \"description\": \"An array of exactly three topics\",\n      \"minItems\": 3,\n      \"maxItems\": 3,\n      \"items\": {\n        \"type\": \"string\"\n      }\n    }\n  },\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1552,
+        288
+      ],
+      "id": "04f8b9f3-39b5-4032-951e-658bc8a11f0d",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "output.topics",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        80
+      ],
+      "id": "c9ca9721-938c-4820-bdf8-04f58f25c552",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "resource": "extract",
+        "urls": [
+          "={{ $('Initial Research').item.json.results[0].url }}",
+          "https://www.goepps.com/blog/this-weeks-digital-marketing-news-ai-threats-googles-spam-crackdown-and-the-new-rules-of-ai-powered-search",
+          "https://www.pymnts.com/artificial-intelligence-2/2025/ai-agents-take-over-the-seo-playbook/",
+          "https://digiday.com/marketing/the-case-for-and-against-ai-driven-seo-in-the-zero-click-era/",
+          "https://www.searchenginejournal.com/"
+        ],
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavily",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        80
+      ],
+      "id": "036f011a-2e5a-4925-9a93-99ddcb11d060",
+      "name": "Research Topics",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Topic: {{ $json.query }}\n\nResearch:\n{{ $json.results.map(item => JSON.stringify(item, null, 2)).join('\\n\\n') }}\n",
+        "options": {
+          "systemMessage": "=# Overview\nYou are a professional newsletter section writer. Your only task is to write ONE standalone section of a business newsletter based on the provided articles/notes.\n\n## Audience\nOwners and COOs at service-based SMEs (10â€“50 employees). Theyâ€™re busy. They want practical next steps.\n\n## Output Requirements\n- Start with a clear section heading (one line).\n- Immediately after the heading, include a 2â€“3 sentence â€œwhy this mattersâ€ summary.\n- Then include:\n  1) What changed (2â€“4 bullets)\n  2) What to do next (3â€“5 bullets, practical actions)\n  3) Watchouts / caveats (1â€“3 bullets)\n- End with one short CTA line for Flowstate Digital (no hype).\n\n## Style Rules\n- No fluff. No generic intro like â€œIn todayâ€™s landscapeâ€¦â€\n- Write like a straight-talking consultant.\n- Short paragraphs, tight bullets, clear verbs.\n- Donâ€™t mention that you are an AI.\n\n## Citations (Strict)\n- If you reference facts, stats, predictions, named frameworks, or specific claims, you MUST cite a source.\n- Provide citations as clickable URLs inline at the end of the sentence/bullet.\n- Do NOT invent citations. If you cannot verify a claim from the provided material, remove it.\n- Prefer primary sources (official docs, original reports) over second-hand summaries when available.\n\n## Relevance Filter\nOnly include points related to:\n- AI search / AEO / GEO\n- AI agents for business\n- Automation platforms (Make.com, n8n, Zapier)\n- CRM & RevOps\n- Analytics & measurement (GA4, consent, attribution)\n- Paid media platform changes\n- Support ops (chatbots, knowledge base)\n- EU/Spain operational rules (AI Act, privacy, e-invoicing)\n- Security considerations for automation\n\nIgnore everything else.\n\n## Optional Local Flavor (Use when relevant)\n- Add ONE sentence that makes it relevant to Barcelona/Spain-based SMEs (cost pressure, compliance, invoicing rules, etc.).\n- Only include this if it fits naturally.\n\n## Tool Mention (Use when automation is relevant)\n- If the section is about workflows/integrations, mention Make.com as the â€œcentral nervous systemâ€ in one sentence.\n\n## Important\n- Do not write the overall newsletter title, introduction, or conclusion.\n- Do not add multiple sections. Output ONE section only."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1856,
+        80
+      ],
+      "id": "b5d7ceb3-b729-44b3-b81c-c9e85940a716",
+      "name": "Section Writer Agent"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "output"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2192,
+        80
+      ],
+      "id": "a9253983-232c-4c8f-a497-23b47b4a70a3",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        256
+      ],
+      "id": "871cad43-635b-44bd-bafa-c8191066e953",
+      "name": "OpenRouter Chat Model1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Title: {{ $('Planning Agent').item.json.output.title }}\n\nSections: {{ $json.output.join(\"\\n\\n\\n\") }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=# Overview\nYou are an expert newsletter editor. Merge exactly three provided sections into a cohesive, email-ready HTML body with a holistic introduction and conclusion. Maintain a professional, concise tone for a business audience and preserve intended meaning.\n\n## Goals\n- Refine clarity, flow, and consistency across all sections.\n- Keep total content output â‰¤ 1000 words (hard limit). Avoid fluff.\n\n## Structure (HTML only)\n1) <p> Introduction that frames the three topics and their relevance; reference todayâ€™s date: {{ $now.format('yyyy-MM-dd') }}.\n2) For each provided section:\n   - <h2> Use or lightly adjust the given title.\n   - Edited <p> content.\n   - Inline, clickable citations near related claims using <a href=\"https://...\">Source</a>. Never invent sources.\n3) <h3>Sources</h3><ul> A single consolidated list:\n   - Each item: <li><a href=\"[URL]\">[Publication Name] â€“ [Article Title]</a></li>\n   - Include full URLs, deduplicate identical links, and alphabetize by Publication Name.\n4) <p> Conclusion tying threads together with implications or next steps.\n\n## Citation and Link Rules\n- Every factual claim relying on external information must include a real, verifiable, clickable URL.\n- Preserve any provided citations; standardize to the <a> format.\n- Omit unverifiable links rather than fabricate.\n- Use only basic HTML tags (<h2>, <h3>, <p>, <ul>, <li>, <a>). No images, scripts, styles, or external CSS.\n\n## Input\n- You will receive three sections. Edit and integrate them without adding unrelated topics.\n\nOutput Format (return only this)\nSubject: One clear, specific subject line (â‰¤ 80 characters)\n\nContent:\n[HTML body only as specified above]\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        2320,
+        80
+      ],
+      "id": "41a56f42-54ca-4665-9d5d-45aac66cde43",
+      "name": "Editor Agent"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"subject\": {\n      \"type\": \"string\",\n      \"description\": \"the email subject\"\n    },\n    \"content\": {\n      \"type\": \"string\",\n      \"description\": \"the newsletter content\"\n    }\n  },\n  \"required\": [\"subject\", \"content\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2176,
+        272
+      ],
+      "id": "7a61de40-2855-4530-b299-14c152c30f6c",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "content": "# ðŸ§  AI-Powered Newsletter Setup Guide  \n**Author:** [Nate Herk](https://www.youtube.com/@nateherk)\n\nFollow these steps to generate a research-backed newsletter with agents and automation:\n\n### âœ… Step 1: Choose Your Schedule  \nOpen the **Schedule Trigger** and set the time you'd like this workflow to run. This controls when your newsletter will be auto-generated.\n\n### âœ… Step 2: Connect Your [Tavily](https://www.tavily.com/) API Key  \nAdd your Tavily key to the two Tavily nodes. These nodes power the research phase of your newsletter.\n\n### âœ… Step 3: Set Your Newsletter Topic  \nIn the **Initial Research** node, enter the topic you'd like researched in the **Query** field. This tells Tavily what to research, and it is what the agents will write about.\n\n### âœ… Step 4: Connect Your [OpenRouter](https://openrouter.ai/) API Key  \nThis powers the three agents that handle writing and formatting. Add your key via the OpenRouter Chat Model nodes.\n\n### âœ… Step 5: Link Your Gmail  \nConnect your Gmail credentials so the final draft can be emailed to youâ€”or anyone else you choose.\n\n### âœ… Step 6: Activate the Workflow  \nOnce you're ready to go, set the workflow to **active** so it automatically runs based on your scheduled trigger.\n\n### ðŸ’¡ Final Step: Test & Refine  \nRun the workflow and experiment with prompts to adjust tone, formatting, or how sources are presented. In the final part of the video, Nate shares tips for improving and scaling this workflow further.\n",
+        "height": 752,
+        "width": 752
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eed5eb09-e155-4359-b3ed-6c3bbf441810",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Trigger\nSet cadence",
+        "height": 224,
+        "width": 208,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        768,
+        0
+      ],
+      "id": "d06dc327-e89f-4fb4-8901-e350d7c43df0",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Set your newsletter topic in the \"query\" field",
+        "height": 224,
+        "width": 208,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        992,
+        0
+      ],
+      "id": "13767878-b1be-4ecb-aeef-01df98779f3f",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Generating Title & Topics",
+        "height": 224,
+        "width": 448,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1216,
+        0
+      ],
+      "id": "30cb54db-6f58-4b1d-9540-4cfffe9c9536",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.results.map(item => JSON.stringify(item, null, 2)).join('\\n\\n') }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=# Overview\nYou are an expert newsletter planner. You will receive a small set of articles from the past week. Your job is to produce:\n1) one short, clear newsletter title\n2) exactly three focused topics for the weekly edition\n\nYour choices must come directly from real trends or patterns you see in the provided articles.\n\n## Coverage Areas\nOnly consider information related to:\n- AI search / AEO / GEO (answer engines, citations, AI Overviews, zero-click)\n- AI agents for business (agentic workflows, copilots, assistants in ops)\n- Automation platforms (Make.com, n8n, Zapier, webhooks, integrations)\n- CRM & RevOps (HubSpot/Pipedrive, lead routing, lifecycle stages, attribution)\n- Analytics & measurement (GA4, tracking, consent, server-side, dashboards)\n- Paid media platform changes (Google Ads, Meta, LinkedIn ads, tracking changes)\n- Customer support ops (chatbots, knowledge bases, helpdesk automation)\n- SME operations efficiency (process, workflows, time/cost benchmarks)\n- EU/Spain rules affecting digital ops (AI Act, privacy, e-invoicing, compliance)\n- Security for automation (access, permissions, data handling, risk)\n\nIgnore anything outside these areas.\n\n## Instructions\n- The title should be short (max 10 words), descriptive, and based on the actual news.\n- The three topics should each be 3â€“5 words.\n- The topics should feel related and make sense together as one weekly theme.\n- Prioritize topics that are actionable for SMEs (10â€“50 employees).\n- Do not guess or invent anything. Stay grounded in the material you receive.\n- If an article is outside the allowed areas, ignore it when forming the title and topics.\n\n## Output Format (exact)\nTitle: <title>\nTopics:\n- <topic 1>\n- <topic 2>\n- <topic 3>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        80
+      ],
+      "id": "7ce2fa7d-80ce-424b-becc-58f6ecaad081",
+      "name": "Planning Agent",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "content": "## Writing Newsletter Sections",
+        "height": 224,
+        "width": 448,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        0
+      ],
+      "id": "f8124588-93fc-462d-8e1e-52d0d6ab890d",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Editing Final Copy",
+        "height": 224,
+        "width": 448,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        0
+      ],
+      "id": "368a4fc0-63c9-4aa4-8a7a-4e2e3a9eb1e1",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "width": 832,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        240
+      ],
+      "id": "e74c1120-ef92-413b-8a02-63d555a145da",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Send Draft",
+        "height": 224,
+        "width": 224
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2608,
+        0
+      ],
+      "id": "0de128db-1fe1-4c00-b1ee-4f4bbee47148",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "sendTo": "your.email@example.com",
+        "subject": "={{ $json.output.subject }}",
+        "message": "={{ $json.output.content }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2672,
+        80
+      ],
+      "id": "a11643cf-0a54-4582-90fc-5374c7de164f",
+      "name": "Send a message",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ea3bf38f-6b2f-4f4a-9ae4-bc14ac6f2517",
+              "leftValue": "={{ $json.results && $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "larger"
+              }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        80
+      ],
+      "id": "1057700a-5fd5-4228-8d99-43eaf16e5f9d",
+      "name": "Has Research Results?"
+    },
+    {
+      "parameters": {
+        "query": "Weekly news on AI SEO (alternate query + broader sources)",
+        "options": {}
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavily",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        220
+      ],
+      "id": "9c189293-2e67-4ac0-a8ad-ca854444b171",
+      "name": "Initial Research (Fallback)"
+    },
+    {
+      "parameters": {
+        "url": "https://internal.example.com/brand-context",
+        "method": "GET",
+        "authentication": "none",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1076,
+        260
+      ],
+      "id": "96e9d86a-1642-4bd6-aca4-6bc8b9ebeb9c",
+      "name": "Fetch Internal Context (HTTP)"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        120
+      ],
+      "id": "e6043a5b-94ed-49d9-9184-9bd85e5e7820",
+      "name": "Merge Research + Internal Context"
+    },
+    {
+      "parameters": {
+        "url": "https://internal.example.com/workflow-logs",
+        "method": "POST",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\"workflow\":\"ai-newsletter\",\"timestamp\":$now.toISO(),\"topics\":$json.topics ? $json.topics.length : undefined,\"status\":\"sent\"} }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2580,
+        -60
+      ],
+      "id": "4d430626-88d0-43ee-a055-fb3017ae6aa1",
+      "name": "Log Run (HTTP)",
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Section Writer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Planning Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Planning Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Section Writer Agent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Editor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Editor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Editor Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editor Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Run (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planning Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initial Research",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Internal Context (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial Research": {
+      "main": [
+        [
+          {
+            "node": "Has Research Results?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Research Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Topics": {
+      "main": [
+        [
+          {
+            "node": "Section Writer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Research Results?": {
+      "main": [
+        [
+          {
+            "node": "Merge Research + Internal Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Initial Research (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initial Research (Fallback)": {
+      "main": [
+        [
+          {
+            "node": "Merge Research + Internal Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Internal Context (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Merge Research + Internal Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Research + Internal Context": {
+      "main": [
+        [
+          {
+            "node": "Planning Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": []
+}
